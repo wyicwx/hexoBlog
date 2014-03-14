@@ -6,7 +6,7 @@ tags:
 
 为了减少网络传输数据量，http传输过程中会采用通用的压缩算法来压缩数据，gzip属于最常用的压缩算法。
 
-在node中http模块并没有帮我们进行解压，我们需要手动去判断gzip。
+使用node的http模块发送请求时并没有帮我们进行解压，因此我们需要手动去判断gzip。
 
 ```
 var http = require('http');
@@ -58,6 +58,40 @@ function handler(responder) {
 }
 ```
 
+若是要让服务端支持gzip压缩可以先判断请求头的accept-encoding是否含有gzip
 
+```
+var fs = require('fs');
+var http = require('http');
+var zlib = require('zlib');
 
+http.createServer(function(req, res) {
+	var file = fs.createReadStream('./qq.html');
+	var acceptEncoding = req.headers['accept-encoding'];
+	if(acceptEncoding && acceptEncoding.indexOf('gzip') != -1) {
+		var gzipStream = zlib.createGzip();
+		// 设置返回头content-encoding为gzip
+		res.writeHead(200, {
+			"content-encoding": "gzip"
+		});
+		file.pipe(gzipStream).pipe(res);
+	} else {
+		res.writeHead(200);
+		// 不压缩
+		file.pipe(res);
+	}
+}).listen(8080);
 
+```
+
+使用curl测试一下
+```
+# 不带有Accept-Encoding:gzip 返回正常文本
+curl localhost:8080
+# 带Accept-Encoding:gzip 返回压缩过的文件
+curl -H "Accept-Encoding:gzip" localhost:8080
+```
+
+通过zlib可以实现客户端和服务端对gzip的压缩和解压
+
+在express中提供了compress的中间件用来处理gzip
